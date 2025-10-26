@@ -17,7 +17,12 @@
 import { useState, useEffect } from "react";
 import { UseMediaStreamResult } from "./use-media-stream-mux";
 
-export function useWebcam(): UseMediaStreamResult {
+export type CameraOptions = {
+  facingMode?: 'user' | 'environment';
+  deviceId?: string;
+};
+
+export function useWebcam(cameraOptions?: CameraOptions): UseMediaStreamResult {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
 
@@ -41,9 +46,14 @@ export function useWebcam(): UseMediaStreamResult {
   }, [stream]);
 
   const start = async () => {
-    const mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-    });
+    const constraints: MediaStreamConstraints = {
+      video: cameraOptions ? {
+        facingMode: cameraOptions.facingMode || 'user',
+        ...(cameraOptions.deviceId && { deviceId: { exact: cameraOptions.deviceId } })
+      } : true,
+    };
+    
+    const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
     setStream(mediaStream);
     setIsStreaming(true);
     return mediaStream;

@@ -40,7 +40,7 @@ function ControlTray({
   supportsVideo,
   enableEditingSettings,
 }: ControlTrayProps) {
-  const videoStreams = [useWebcam(), useScreenCapture()];
+  const videoStreams = [useWebcam({ facingMode: 'environment' }), useScreenCapture()];
   const [activeVideoStream, setActiveVideoStream] =
     useState<MediaStream | null>(null);
   const [webcam] = videoStreams;
