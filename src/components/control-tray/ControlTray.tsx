@@ -22,6 +22,7 @@ import { UseMediaStreamResult } from "../../hooks/use-media-stream-mux";
 import { useScreenCapture } from "../../hooks/use-screen-capture";
 import { useWebcam } from "../../hooks/use-webcam";
 import { AudioRecorder } from "../../lib/audio-recorder";
+import { NavigationState, Position } from "../../types";
 import AudioPulse from "../audio-pulse/AudioPulse";
 import "./control-tray.scss";
 
@@ -51,6 +52,21 @@ function ControlTray({
 
   const { client, connected, connect, disconnect, volume } =
     useLiveAPIContext();
+
+  /**
+   * Navigation State Management
+   * Tracks whether multi-step navigation is active and the current scene state
+   */
+  const [navigationState, setNavigationState] = useState<NavigationState>({
+    active: false,
+    currentStep: 0,
+    steps: [],
+    scene: {
+      user: [0, 0],
+      objects: [],
+      history: []
+    }
+  });
 
   //handler for swapping from one video-stream to the next
   const changeStreams = (next?: UseMediaStreamResult) => async () => {
@@ -144,36 +160,151 @@ function ControlTray({
     };
   }, [connected, activeVideoStream, client, videoRef]);
 
-  // Periodic message sender
+  /**
+   * Listen to scene updates from the client
+   * This syncs the navigation state with the client's scene memory
+   */
   useEffect(() => {
-    console.log("[PERIODIC] Effect triggered, connected:", connected);
-    
+    if (!client) return;
+
+    const handleSceneUpdate = (scene: typeof navigationState.scene) => {
+      setNavigationState(prev => ({
+        ...prev,
+        scene
+      }));
+    };
+
+    client.on('sceneupdate', handleSceneUpdate);
+
+    return () => {
+      client.off('sceneupdate', handleSceneUpdate);
+    };
+  }, [client]);
+
+  /**
+   * Enhanced message sender with navigation awareness
+   * Instead of periodic messages, this queries with scene context when navigation is active
+   */
+  useEffect(() => {
+    console.log("[NAV] Effect triggered, connected:", connected, "navigationActive:", navigationState.active);
+
     if (!connected) {
-      console.log("[PERIODIC] Not connected, skipping setup");
+      console.log("[NAV] Not connected, skipping setup");
       return;
     }
 
-    console.log("[PERIODIC] Setting up 30-second interval");
-    
-    const intervalId = setInterval(() => {
-      console.log("[PERIODIC] Interval fired, sending message now");
-      console.log("[PERIODIC] Client:", client);
-      console.log("[PERIODIC] Client.session:", client.session);
-      
-      try {
-        client.send([{ text: "Talk about the surronding consicely" }]);
-        console.log("[PERIODIC] Message sent successfully");
-      } catch (error) {
-        console.error("[PERIODIC] Error sending message:", error);
+    // If navigation is NOT active, send periodic contextual queries
+    if (!navigationState.active) {
+      console.log("[NAV] Setting up 30-second interval for contextual queries");
+
+      const intervalId = setInterval(() => {
+        console.log("[NAV] Interval fired, sending contextual query");
+
+        try {
+          // Send query without scene context when not navigating
+          client.send([{ text: "Talk about the surrounding concisely" }], true, false);
+          console.log("[NAV] Contextual query sent successfully");
+        } catch (error) {
+          console.error("[NAV] Error sending query:", error);
+        }
+      }, 30000);
+
+      console.log("[NAV] Interval set up with ID:", intervalId);
+
+      return () => {
+        console.log("[NAV] Cleaning up interval:", intervalId);
+        clearInterval(intervalId);
+      };
+    } else {
+      // When navigation is active, don't send periodic messages
+      // Navigation queries are sent on-demand with scene context
+      console.log("[NAV] Navigation active, periodic queries disabled");
+    }
+  }, [connected, client, navigationState.active]);
+
+  /**
+   * Example: Trigger navigation mode
+   * In a real application, this would be triggered by user voice commands
+   * or UI interactions. For now, this serves as a demo function.
+   *
+   * To test navigation:
+   * 1. User says: "There is a box in front of me. Help me get to the other side."
+   * 2. System detects objects and sets up scene
+   * 3. Queries Gemini with scene context for step-by-step instructions
+   * 4. After each step, updates user position and queries again
+   */
+  const startNavigation = (goalDescription: string) => {
+    console.log("[NAV] Starting navigation with goal:", goalDescription);
+
+    // Set navigation goal in client's scene memory
+    client.setNavigationGoal(goalDescription);
+
+    // Activate navigation state
+    setNavigationState(prev => ({
+      ...prev,
+      active: true,
+      scene: {
+        ...prev.scene,
+        goalDescription
       }
-    }, 30000);
+    }));
 
-    console.log("[PERIODIC] Interval set up with ID:", intervalId);
+    // Query Gemini with scene context for first navigation step
+    const query = `I need to navigate: ${goalDescription}. What objects do you see and what should I do first?`;
+    client.send([{ text: query }], true, true); // includeSceneContext = true
+  };
 
-    return () => {
-      console.log("[PERIODIC] Cleaning up interval:", intervalId);
-      clearInterval(intervalId);
-    };
+  /**
+   * Update user position after completing a navigation step
+   * This is called after the user confirms they've completed an instruction
+   */
+  const updateNavigationStep = (newPosition: Position, action: string) => {
+    console.log("[NAV] Updating position to:", newPosition, "after:", action);
+
+    // Update position in client's scene memory
+    client.updateUserPosition(newPosition, action);
+
+    // Query for next step with updated scene context
+    const query = "I completed that step. What's next?";
+    client.send([{ text: query }], true, true); // includeSceneContext = true
+  };
+
+  /**
+   * Complete navigation when goal is reached
+   */
+  const completeNavigation = () => {
+    console.log("[NAV] Navigation complete");
+
+    setNavigationState(prev => ({
+      ...prev,
+      active: false,
+      currentStep: 0,
+      steps: []
+    }));
+  };
+
+  // Example: Expose navigation functions for testing
+  // In production, these would be triggered by voice commands or UI
+  useEffect(() => {
+    if (connected && client) {
+      // Make functions available globally for testing in console
+      (window as any).lumaNav = {
+        start: startNavigation,
+        updateStep: updateNavigationStep,
+        complete: completeNavigation,
+        addObject: (name: string, x: number, y: number, description?: string) => {
+          client.updateSceneObject({ name, position: [x, y], description });
+        },
+        resetScene: () => client.resetScene(),
+        getScene: () => client.sceneMemory
+      };
+      console.log("[NAV] Navigation controls available at window.lumaNav");
+      console.log("[NAV] Example usage:");
+      console.log("  window.lumaNav.addObject('box', 3, 0, 'cardboard box')");
+      console.log("  window.lumaNav.start('get to the other side of the room')");
+      console.log("  window.lumaNav.updateStep([2, 0], 'moved 2 steps right')");
+      console.log("  window.lumaNav.complete()");
+    }
   }, [connected, client]);
 
   return (

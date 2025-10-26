@@ -30,7 +30,7 @@ import {
 
 import { EventEmitter } from "eventemitter3";
 import { difference } from "lodash";
-import { LiveClientOptions, StreamingLog } from "../types";
+import { LiveClientOptions, StreamingLog, SceneMemory, SceneObject, Position, SceneSnapshot } from "../types";
 import { base64ToArrayBuffer } from "./utils";
 
 /**
@@ -62,6 +62,8 @@ export interface LiveClientEventTypes {
   ) => void;
   // Emitted when the current turn is complete
   turncomplete: () => void;
+  // Emitted when scene memory is updated
+  sceneupdate: (scene: SceneMemory) => void;
 }
 
 /**
@@ -91,6 +93,21 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
 
   public getConfig() {
     return { ...this.config };
+  }
+
+  /**
+   * Scene Memory Management
+   * Stores the current scene state including user position and detected objects
+   * This allows multi-step navigation even when objects are no longer visible
+   */
+  private _sceneMemory: SceneMemory = {
+    user: [0, 0], // Initialize user at origin
+    objects: [],
+    history: []
+  };
+
+  public get sceneMemory(): SceneMemory {
+    return this._sceneMemory;
   }
 
   constructor(options: LiveClientOptions) {
@@ -289,24 +306,167 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
   }
 
   /**
-   * send normal content parts such as { text }
+   * Update user position in scene memory
+   * Call this after each navigation step is completed
+   *
+   * @param newPosition - The new [x, y] position of the user
+   * @param action - Description of the action taken (e.g., "Moved 2 steps forward")
    */
-  send(parts: Part | Part[], turnComplete: boolean = true) {
+  updateUserPosition(newPosition: Position, action?: string) {
+    // Save current state to history before updating
+    this._sceneMemory.history.push({
+      timestamp: Date.now(),
+      user: [...this._sceneMemory.user],
+      objects: [...this._sceneMemory.objects],
+      action
+    });
+
+    // Update user position
+    this._sceneMemory.user = newPosition;
+
+    this.log("scene.userUpdate", `User moved to [${newPosition[0]}, ${newPosition[1]}]${action ? ` - ${action}` : ''}`);
+    this.emit("sceneupdate", this._sceneMemory);
+  }
+
+  /**
+   * Add or update an object in scene memory
+   *
+   * @param object - The scene object to add or update
+   */
+  updateSceneObject(object: SceneObject) {
+    const existingIndex = this._sceneMemory.objects.findIndex(
+      obj => obj.name === object.name
+    );
+
+    if (existingIndex >= 0) {
+      // Update existing object
+      this._sceneMemory.objects[existingIndex] = {
+        ...object,
+        timestamp: Date.now()
+      };
+    } else {
+      // Add new object
+      this._sceneMemory.objects.push({
+        ...object,
+        timestamp: Date.now()
+      });
+    }
+
+    this.log("scene.objectUpdate", `Object "${object.name}" at [${object.position[0]}, ${object.position[1]}]`);
+    this.emit("sceneupdate", this._sceneMemory);
+  }
+
+  /**
+   * Set navigation goal
+   *
+   * @param goal - Target position or description
+   */
+  setNavigationGoal(goal: Position | string) {
+    if (typeof goal === 'string') {
+      this._sceneMemory.goalDescription = goal;
+    } else {
+      this._sceneMemory.goal = goal;
+    }
+
+    this.log("scene.goalSet", typeof goal === 'string' ? goal : `[${goal[0]}, ${goal[1]}]`);
+    this.emit("sceneupdate", this._sceneMemory);
+  }
+
+  /**
+   * Clear scene memory (useful for starting fresh navigation)
+   */
+  resetScene() {
+    this._sceneMemory = {
+      user: [0, 0],
+      objects: [],
+      history: []
+    };
+
+    this.log("scene.reset", "Scene memory cleared");
+    this.emit("sceneupdate", this._sceneMemory);
+  }
+
+  /**
+   * Generate scene context string for including in Gemini prompts
+   * This provides the model with awareness of the scene state
+   */
+  getSceneContext(): string {
+    const { user, objects, goal, goalDescription } = this._sceneMemory;
+
+    let context = `\n--- SCENE MEMORY ---\n`;
+    context += `User Position: [${user[0]}, ${user[1]}]\n`;
+
+    if (objects.length > 0) {
+      context += `\nDetected Objects:\n`;
+      objects.forEach(obj => {
+        const relativeX = obj.position[0] - user[0];
+        const relativeY = obj.position[1] - user[1];
+        context += `- ${obj.name} at [${obj.position[0]}, ${obj.position[1]}] (relative: [${relativeX}, ${relativeY}])`;
+        if (obj.description) {
+          context += ` - ${obj.description}`;
+        }
+        context += `\n`;
+      });
+    } else {
+      context += `No objects detected yet.\n`;
+    }
+
+    if (goal || goalDescription) {
+      context += `\nNavigation Goal: `;
+      if (goalDescription) {
+        context += goalDescription;
+      }
+      if (goal) {
+        context += ` [${goal[0]}, ${goal[1]}]`;
+      }
+      context += `\n`;
+    }
+
+    context += `--- END SCENE MEMORY ---\n`;
+
+    return context;
+  }
+
+  /**
+   * send normal content parts such as { text }
+   * Enhanced to include scene context when navigation is active
+   */
+  send(parts: Part | Part[], turnComplete: boolean = true, includeSceneContext: boolean = false) {
     console.log("[SEND] GenAILiveClient.send() called");
     console.log("[SEND] Status:", this.status);
     console.log("[SEND] Session exists:", !!this.session);
     console.log("[SEND] Parts:", Array.isArray(parts) ? parts : [parts]);
-    
+
     if (!this.session) {
       console.error("[SEND] No session exists, cannot send!");
       return;
     }
-    
+
     try {
-      this.session?.sendClientContent({ turns: parts, turnComplete });
+      let partsToSend = Array.isArray(parts) ? parts : [parts];
+
+      // If scene context should be included, prepend it to the message
+      if (includeSceneContext) {
+        const sceneContext = this.getSceneContext();
+
+        // Find text part and prepend scene context
+        partsToSend = partsToSend.map(part => {
+          if ('text' in part && part.text) {
+            return { text: sceneContext + part.text };
+          }
+          return part;
+        });
+
+        // If no text part exists, add scene context as new text part
+        if (!partsToSend.some(p => 'text' in p)) {
+          partsToSend.unshift({ text: sceneContext });
+        }
+      }
+
+      this.session?.sendClientContent({ turns: partsToSend, turnComplete });
       console.log("[SEND] sendClientContent() called successfully");
       this.log(`client.send`, {
-        turns: Array.isArray(parts) ? parts : [parts],
+        turns: partsToSend,
         turnComplete,
       });
     } catch (error) {

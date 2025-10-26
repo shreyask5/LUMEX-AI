@@ -42,3 +42,52 @@ export type ClientContentLog = {
   turns: Part[];
   turnComplete: boolean;
 };
+
+/**
+ * Scene Memory Types for Multi-Step Navigation
+ */
+
+// Represents a 2D position in the scene
+export type Position = [number, number];
+
+// Represents an object detected in the scene with name and position
+export interface SceneObject {
+  name: string;
+  position: Position;
+  description?: string; // Optional description for more context
+  timestamp?: number; // When the object was detected
+}
+
+// The complete scene state tracking user and objects
+export interface SceneMemory {
+  user: Position; // Current user position [x, y]
+  objects: SceneObject[]; // List of detected objects in the scene
+  goal?: Position; // Optional goal position the user wants to reach
+  goalDescription?: string; // Description of the goal (e.g., "other side of the room")
+  history: SceneSnapshot[]; // History of scene states for tracking movement
+}
+
+// Snapshot of scene at a point in time
+export interface SceneSnapshot {
+  timestamp: number;
+  user: Position;
+  objects: SceneObject[];
+  action?: string; // What action was taken to reach this state
+}
+
+// Navigation step instruction from Gemini
+export interface NavigationStep {
+  instruction: string; // The instruction text (e.g., "Take 2 steps forward")
+  expectedUserPosition?: Position; // Expected position after this step
+  isComplete: boolean; // Whether the navigation goal is reached
+  nextStep?: string; // Preview of what comes next
+}
+
+// Navigation state for multi-step guidance
+export interface NavigationState {
+  active: boolean; // Whether navigation is currently active
+  currentStep: number; // Current step index
+  steps: NavigationStep[]; // All steps in the current navigation
+  scene: SceneMemory; // Current scene state
+  awaitingUserConfirmation?: boolean; // Whether waiting for user to complete step
+}
