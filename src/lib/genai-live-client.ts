@@ -244,6 +244,10 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
    * send realtimeInput, this is base64 chunks of "audio/pcm" and/or "image/jpg"
    */
   sendRealtimeInput(chunks: Array<{ mimeType: string; data: string }>) {
+    if (this._status !== "connected") {
+      return;
+    }
+
     let hasAudio = false;
     let hasVideo = false;
     for (const ch of chunks) {
@@ -288,10 +292,25 @@ export class GenAILiveClient extends EventEmitter<LiveClientEventTypes> {
    * send normal content parts such as { text }
    */
   send(parts: Part | Part[], turnComplete: boolean = true) {
-    this.session?.sendClientContent({ turns: parts, turnComplete });
-    this.log(`client.send`, {
-      turns: Array.isArray(parts) ? parts : [parts],
-      turnComplete,
-    });
+    console.log("[SEND] GenAILiveClient.send() called");
+    console.log("[SEND] Status:", this.status);
+    console.log("[SEND] Session exists:", !!this.session);
+    console.log("[SEND] Parts:", Array.isArray(parts) ? parts : [parts]);
+    
+    if (!this.session) {
+      console.error("[SEND] No session exists, cannot send!");
+      return;
+    }
+    
+    try {
+      this.session?.sendClientContent({ turns: parts, turnComplete });
+      console.log("[SEND] sendClientContent() called successfully");
+      this.log(`client.send`, {
+        turns: Array.isArray(parts) ? parts : [parts],
+        turnComplete,
+      });
+    } catch (error) {
+      console.error("[SEND] Error in sendClientContent:", error);
+    }
   }
 }

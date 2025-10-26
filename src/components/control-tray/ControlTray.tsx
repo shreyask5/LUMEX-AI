@@ -49,7 +49,7 @@ function ControlTray({
   const [muted] = useState(false);
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  const { client, connected, connect, volume } =
+  const { client, connected, connect, disconnect, volume } =
     useLiveAPIContext();
 
   //handler for swapping from one video-stream to the next
@@ -143,6 +143,38 @@ function ControlTray({
       clearTimeout(timeoutId);
     };
   }, [connected, activeVideoStream, client, videoRef]);
+
+  // Periodic message sender
+  useEffect(() => {
+    console.log("[PERIODIC] Effect triggered, connected:", connected);
+    
+    if (!connected) {
+      console.log("[PERIODIC] Not connected, skipping setup");
+      return;
+    }
+
+    console.log("[PERIODIC] Setting up 30-second interval");
+    
+    const intervalId = setInterval(() => {
+      console.log("[PERIODIC] Interval fired, sending message now");
+      console.log("[PERIODIC] Client:", client);
+      console.log("[PERIODIC] Client.session:", client.session);
+      
+      try {
+        client.send([{ text: "Talk about the surronding consicely" }]);
+        console.log("[PERIODIC] Message sent successfully");
+      } catch (error) {
+        console.error("[PERIODIC] Error sending message:", error);
+      }
+    }, 30000);
+
+    console.log("[PERIODIC] Interval set up with ID:", intervalId);
+
+    return () => {
+      console.log("[PERIODIC] Cleaning up interval:", intervalId);
+      clearInterval(intervalId);
+    };
+  }, [connected, client]);
 
   return (
     <section className="control-tray">
