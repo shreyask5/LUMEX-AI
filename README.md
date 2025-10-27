@@ -1,8 +1,7 @@
 # Lumex AI
 
-> An intelligent visual assistance system powered by Google's Gemini Live API, designed to help blind and visually impaired users navigate their environment with multi-step guidance and persistent scene memory.
+> An intelligent visual assistance system powered by a multi modal llm, designed to help blind and visually impaired users navigate their environment with multi-step guidance and persistent scene memory.
 
-![Lumex AI](https://img.shields.io/badge/Gemini-2.0%20Flash-blue)
 ![React](https://img.shields.io/badge/React-18.3.1-61dafb)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.6.3-3178c6)
 
@@ -10,7 +9,7 @@
 
 ## 🌟 Overview
 
-Lumex AI is a real-time visual assistance application that combines computer vision, voice interaction, and AI to provide comprehensive environmental awareness and navigation guidance. Built on Google's Gemini 2.0 Flash API with multimodal live capabilities, Lumex AI offers step-by-step navigation around obstacles, even when they're no longer visible in the camera view.
+Lumex AI is a real-time visual assistance application that combines computer vision, voice interaction, and AI to provide comprehensive environmental awareness and navigation guidance. Built on Google's 2.0 Flash API with multimodal live capabilities, Lumex AI offers step-by-step navigation around obstacles, even when they're no longer visible in the camera view.
 
 ### Key Capabilities
 
@@ -28,7 +27,7 @@ Lumex AI is a real-time visual assistance application that combines computer vis
 ### 🎯 Core Features
 
 - **Live Video Processing**: Real-time camera feed analysis at 0.5 FPS
-- **Audio Streaming**: Bidirectional audio communication with Gemini Live
+- **Audio Streaming**: Bidirectional audio communication with Google speech to text
 - **Multimodal AI**: Combines visual, audio, and contextual information
 - **Scene Memory**: Remembers object positions even when out of view
 - **Navigation Guidance**: Step-by-step instructions to reach destinations
@@ -52,7 +51,6 @@ Lumex AI is a real-time visual assistance application that combines computer vis
 
 ```
 Frontend:        React 18.3.1 + TypeScript 5.6.3
-AI Engine:       Google Gemini 2.0 Flash (Live API)
 State:           Zustand + React Context
 Audio:           Web Audio API + AudioWorklets
 Video:           MediaDevices API (getUserMedia)
@@ -87,7 +85,7 @@ Styling:         SCSS
              │
              ↓
     ┌──────────────────────┐
-    │  Google Gemini Live  │
+    │  Multi Modal LLM     │
     │  • Vision Analysis   │
     │  • Voice Response    │
     │  • Navigation AI     │
@@ -117,7 +115,6 @@ SceneMemory {
 ### Prerequisites
 
 - Node.js 16+ and npm
-- Google Gemini API key ([Get one here](https://ai.google.dev))
 - Modern web browser with camera/microphone access
 - HTTPS connection (required for media access)
 
@@ -134,14 +131,7 @@ SceneMemory {
    npm install
    ```
 
-3. **Configure API key**
-
-   Create a `.env` file in the root directory:
-   ```env
-   REACT_APP_GEMINI_API_KEY=your_api_key_here
-   ```
-
-4. **Start the application**
+3. **Start the application**
    ```bash
    npm start
    ```
@@ -151,7 +141,7 @@ SceneMemory {
    npm run start-https
    ```
 
-5. **Open in browser**
+4. **Open in browser**
    ```
    https://localhost:3000
    ```
@@ -167,7 +157,7 @@ SceneMemory {
 1. **Launch the app** - Camera and API connection start automatically
 2. **Wait for connection** - Look for "Connected - Visual Assistance Active"
 3. **Start speaking** - Ask questions or request assistance
-4. **Receive guidance** - Gemini provides audio responses with visual context
+4. **Receive guidance** - The AI Model provides audio responses with visual context
 
 ### Navigation Mode
 
@@ -180,7 +170,7 @@ window.lumaNav.addObject('box', 3, 0, 'cardboard box');
 // Start navigation with a goal
 window.lumaNav.start('get to the other side of the box');
 
-// After completing each step Gemini instructs
+// After completing each step the assistant instructs
 window.lumaNav.updateStep([0, 2], 'moved 2 steps right');
 window.lumaNav.updateStep([4, 2], 'moved 4 steps forward');
 window.lumaNav.updateStep([4, 0], 'moved 2 steps left');
@@ -409,7 +399,6 @@ console.log.apply(console, arguments.filter(arg =>
 
 - **Accessibility Research**: Study and improve accessibility tech
 - **Computer Vision**: Integrate custom object detection models
-- **AI Applications**: Build on Gemini Live API capabilities
 - **Educational Tool**: Learn multimodal AI implementation
 - **Prototype Base**: Foundation for advanced assistance systems
 
@@ -497,15 +486,6 @@ window.addEventListener('devicemotion', (event) => {
 - Add rate limiting for API calls
 - Validate all user inputs
 
-### Environment Variables
-
-Never commit `.env` files. Use `.env.example`:
-
-```env
-# .env.example
-REACT_APP_GEMINI_API_KEY=your_api_key_here
-```
-
 ---
 
 ## 🐛 Troubleshooting
@@ -589,7 +569,6 @@ limitations under the License.
 
 ## 🙏 Acknowledgments
 
-- **Google AI** - Gemini 2.0 Flash Live API
 - **React Team** - React framework
 - **TypeScript** - Type safety and developer experience
 - **Open Source Community** - Various libraries and tools
@@ -635,7 +614,6 @@ limitations under the License.
 - **Video Processing**: 0.5 FPS, 25% scale, JPEG compression
 - **Audio Input**: 16kHz PCM, mono
 - **Audio Output**: PCM16, streamed via Web Audio API
-- **API Model**: Gemini 2.0 Flash Experimental
 - **Response Modality**: Audio (configurable)
 - **WebSocket**: Persistent bidirectional connection
 
@@ -658,8 +636,6 @@ Note: HTTPS required for all browsers
 <div align="center">
 
 **Lumex AI** - Empowering independence through AI-powered visual assistance
-
-Made with ❤️ using Google Gemini Live API
 
 [Documentation](./NAVIGATION_GUIDE.md) • [Examples](./EXAMPLE_NAVIGATION.md) • [API Reference](./IMPLEMENTATION_SUMMARY.md)
 
